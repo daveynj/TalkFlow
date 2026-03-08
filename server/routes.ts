@@ -394,15 +394,36 @@ export async function registerRoutes(
     const cefrLevel = url.searchParams.get("level") || "B1";
 
     let setup = 0;
+    const sessionId = `talkflow-${Date.now()}`;
+    console.log(`[Inworld] Opening connection with session: ${sessionId}`);
+
     const api = new WS(
-      `wss://api.inworld.ai/api/v1/realtime/session?key=talkflow-${Date.now()}&protocol=realtime`,
+      `wss://api.inworld.ai/api/v1/realtime/session?key=${sessionId}&protocol=realtime`,
       { headers: { Authorization: `Basic ${apiKey}` } }
     );
+
+    const tutorInstructions = `You are TalkFlow, a friendly and encouraging English language tutor. The student is at CEFR level ${cefrLevel}. ${lessonContext ? `The current lesson context: ${lessonContext}.` : ""} Speak clearly and at an appropriate pace for their level. Give pronunciation feedback when they speak. If they make grammar errors, gently correct them. Keep responses concise (2-3 sentences max). Be warm and supportive.`;
 
     const sessionConfig = JSON.stringify({
       type: "session.update",
       session: {
-        instructions: `You are TalkFlow, a friendly and encouraging English language tutor. The student is at CEFR level ${cefrLevel}. ${lessonContext ? `The current lesson context: ${lessonContext}.` : ""} Speak clearly and at an appropriate pace for their level. Give pronunciation feedback when they speak. If they make grammar errors, gently correct them. Keep responses concise (2-3 sentences max). Be warm and supportive.`,
+        type: "realtime",
+        model: "openai/gpt-4o-mini",
+        instructions: tutorInstructions,
+        output_modalities: ["audio", "text"],
+        audio: {
+          input: {
+            turn_detection: {
+              type: "semantic_vad",
+              eagerness: "medium",
+              create_response: true,
+              interrupt_response: true,
+            },
+          },
+          output: {
+            voice: "aura",
+          },
+        },
       },
     });
 
@@ -416,31 +437,40 @@ export async function registerRoutes(
     });
 
     api.on("open", () => {
-      console.log("Inworld API connection opened");
+      console.log("[Inworld] WebSocket connection opened");
     });
 
     api.on("message", (raw: any) => {
       const data = raw.toString();
+
+      // Log all messages during setup for debugging
       if (setup < 2) {
         try {
           const parsed = JSON.parse(data);
+          console.log(`[Inworld] Setup message (phase ${setup}):`, parsed.type, parsed.error ? JSON.stringify(parsed.error) : "");
+
           if (parsed.type === "session.created") {
+            console.log("[Inworld] Session created, sending config...");
             api.send(sessionConfig);
             setup = 1;
           } else if (parsed.type === "session.updated" && setup === 1) {
+            console.log("[Inworld] Session configured, sending greeting...");
             api.send(greetMsg);
             api.send('{"type":"response.create"}');
             setup = 2;
           } else if (parsed.type === "error") {
-            console.error("Inworld API error:", parsed);
+            console.error("[Inworld] API error during setup:", JSON.stringify(parsed));
             if (browser.readyState === WS.OPEN) {
               browser.send(JSON.stringify({ type: "error", message: parsed.error?.message || "API error" }));
               browser.close(1011, "API error");
             }
             return;
           }
-        } catch {}
+        } catch (parseErr) {
+          console.error("[Inworld] Failed to parse setup message:", parseErr);
+        }
       }
+
       if (browser.readyState === WS.OPEN) {
         browser.send(data);
       }
@@ -452,18 +482,20 @@ export async function registerRoutes(
       }
     });
 
-    browser.on("close", () => {
+    browser.on("close", (code: number, reason: string) => {
+      console.log(`[Inworld] Browser closed: ${code} ${reason}`);
       if (api.readyState === WS.OPEN || api.readyState === WS.CONNECTING) {
         api.close();
       }
     });
-    api.on("close", () => {
+    api.on("close", (code: number, reason: string) => {
+      console.log(`[Inworld] API closed: ${code} ${reason}`);
       if (browser.readyState === WS.OPEN) browser.close();
     });
     api.on("error", (e: any) => {
-      console.error("Inworld API error:", e.message);
+      console.error("[Inworld] WebSocket error:", e.message);
       if (browser.readyState === WS.OPEN) {
-        browser.send(JSON.stringify({ type: "error", message: "Voice connection failed" }));
+        browser.send(JSON.stringify({ type: "error", message: "Voice connection failed: " + e.message }));
         browser.close(1011, "API error");
       }
     });

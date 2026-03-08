@@ -45,7 +45,7 @@ export function useInworldVoice(options: UseInworldVoiceOptions = {}) {
     nextPlayTimeRef.current = 0;
     try {
       currentSourceRef.current?.stop();
-    } catch {}
+    } catch { }
     currentSourceRef.current = null;
     setAgentSpeaking(false);
   }, []);
@@ -138,22 +138,33 @@ export function useInworldVoice(options: UseInworldVoiceOptions = {}) {
         try {
           const msg = JSON.parse(event.data);
 
-          if (msg.type === "response.output_audio.delta") {
-            const binary = atob(msg.delta);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-              bytes[i] = binary.charCodeAt(i);
-            }
-            audioQueueRef.current.push(bytes.buffer);
-            if (!playingRef.current) playNext();
+          // Debug logging (remove in production)
+          if (msg.type && !msg.type.includes("audio")) {
+            console.log("[Inworld] Event:", msg.type);
           }
 
-          if (msg.type === "response.output_text.delta" && msg.delta) {
+          // Audio output - handle both Inworld and OpenAI event names
+          if (msg.type === "response.output_audio.delta" || msg.type === "response.output_audio") {
+            const audioB64 = msg.delta || msg.audio;
+            if (audioB64) {
+              const binary = atob(audioB64);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+              audioQueueRef.current.push(bytes.buffer);
+              if (!playingRef.current) playNext();
+            }
+          }
+
+          // Agent text transcript - streaming delta
+          if ((msg.type === "response.output_text.delta" || msg.type === "response.text.delta") && msg.delta) {
             agentTextRef.current += msg.delta;
           }
 
-          if (msg.type === "response.output_text.done") {
-            const fullText = agentTextRef.current || msg.text || "";
+          // Agent text transcript - done (handle multiple event name variants)
+          if (msg.type === "response.output_text.done" || msg.type === "response.audio_transcript.done" || msg.type === "response.text.done") {
+            const fullText = agentTextRef.current || msg.text || msg.transcript || "";
             if (fullText) {
               setTranscript(prev => [...prev, { role: "agent", text: fullText }]);
               options.onTranscript?.(fullText, "agent");
@@ -161,29 +172,48 @@ export function useInworldVoice(options: UseInworldVoiceOptions = {}) {
             agentTextRef.current = "";
           }
 
+          // User speech transcription completed
           if (msg.type === "conversation.item.input_audio_transcription.completed" && msg.transcript) {
             setTranscript(prev => [...prev, { role: "user", text: msg.transcript }]);
             options.onTranscript?.(msg.transcript, "user");
           }
 
+          // Speech detection events (with semantic_vad, responses are auto-created)
           if (msg.type === "input_audio_buffer.speech_started") {
             stopAudio();
             updateState("listening");
           }
 
           if (msg.type === "input_audio_buffer.speech_stopped") {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
-              ws.send(JSON.stringify({ type: "response.create" }));
-            }
+            // With semantic_vad (create_response: true), no need to manually
+            // send commit + response.create — the server handles it
             updateState("connected");
           }
 
+          // Response lifecycle
+          if (msg.type === "response.done") {
+            // Extract transcript from completed response if we haven't got it yet
+            if (msg.response?.output) {
+              for (const output of msg.response.output) {
+                if (output.content) {
+                  for (const item of output.content) {
+                    if (item.transcript && !agentTextRef.current) {
+                      setTranscript(prev => [...prev, { role: "agent", text: item.transcript }]);
+                      options.onTranscript?.(item.transcript, "agent");
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           if (msg.type === "error") {
-            console.error("Inworld error:", msg.message);
+            console.error("Inworld error:", msg);
             updateState("error");
           }
-        } catch {}
+        } catch (e) {
+          console.error("[Inworld] Failed to parse message:", e);
+        }
       };
 
       ws.onclose = () => {
@@ -206,7 +236,7 @@ export function useInworldVoice(options: UseInworldVoiceOptions = {}) {
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     streamRef.current?.getTracks().forEach(t => t.stop());
-    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current?.close().catch(() => { });
     processorRef.current = null;
     sourceRef.current = null;
     streamRef.current = null;
