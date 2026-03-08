@@ -1,0 +1,117 @@
+Product Requirements Document (PRD)
+
+Product Name: TalkFlow AI: Student Tutor
+Document Owner: Dave Jackson
+Target Launch: Q3 2026
+Status: Draft / Prototype Phase
+
+1. Executive Summary
+
+Vision: To democratize high-quality, CEFR-aligned English language education by providing students with an affordable, interactive, and proactive AI tutor available 24/7.
+Background: Building on the success of the Planwise ESL B2B lesson generator, this B2C platform allows students to independently consume interactive lessons. The AI acts as a virtual Dave Jackson—guiding, speaking, correcting, and scaffolding the learning experience just like a seasoned human teacher would.
+
+2. Target Audience
+
+Adult Learners: Professionals and university students aiming to improve fluency and business English (A2 - C1 levels).
+
+Young Learners (Parents as buyers): Parents looking for supplemental English practice for their children, building on traditional kindergarten/school education.
+
+3. Core Features & Requirements
+
+3.1. The Homepage & Onboarding
+
+Hero Section: Clear value proposition ("Master English with your personal AI Tutor").
+
+Interactive Demo: A 30-second mini-lesson right on the homepage so users experience the AI voice and interaction immediately.
+
+CEFR Placement Test: A short, dynamic 5-minute quiz upon signup to determine the user's starting level (A1 to C2).
+
+Dashboard: Displays user progress, current CEFR level, daily streaks, XP earned, and recommended next lessons.
+
+3.2. Proactive AI Tutor Interaction
+
+Text-to-Speech (TTS): The AI must speak the lesson script out loud using natural, conversational voices (e.g., via Web Speech API or ElevenLabs integration).
+
+Proactive Teaching: The AI doesn't just wait; it prompts. If a student lingers on a question for >30 seconds, the AI verbally offers a hint (e.g., "Remember, we are looking for a word that means 'brothers and sisters'.").
+
+Speech Recognition (STT): Students can click a microphone to read sentences out loud. The AI provides real-time pronunciation feedback.
+
+3.3. Lesson Architecture (Powered by Planwise ESL Engine)
+
+Lessons will be generated dynamically based on the student's level and interests, following Dave's structured methodology:
+
+Warm-up: Image-based discussion prompts.
+
+Vocabulary: Interactive flashcards with audio playback, definitions, and example sentences.
+
+Reading: Texts tailored to exact CEFR levels with target vocabulary highlighted.
+
+Interactive Exercises:
+
+Fill in the Blanks: Contextual grammar/vocab practice.
+
+Sentence Unscramble: Drag-and-drop words to form correct syntax.
+
+Multiple Choice Knowledge Checks.
+
+3.4. Gamification & Retention (Added Features)
+
+XP & Streaks: Earning points for completed modules and maintaining daily learning streaks to drive daily active usage (DAU).
+
+Spaced Repetition System (SRS): The AI remembers which vocabulary words the student struggled with and proactively re-introduces them in future warm-ups.
+
+Certificates: Downloadable completion certificates when a student levels up (e.g., moving from B1 to B2).
+
+4. Monetization Strategy (B2C SaaS)
+
+To build a sustainable, recurring revenue business, we will implement a "Freemium" SaaS model using Stripe for payment processing.
+
+Tier 1: Free Basic (Lead Generation)
+
+Includes the Placement Test.
+
+Access to 2 free starter lessons per CEFR level.
+
+Standard AI voice.
+
+Goal: Let them experience the value and hit a paywall when they want to continue their "streak".
+
+Tier 2: TalkFlow Pro ($12 - $15 / month)
+
+Unlimited access to the entire lesson library.
+
+Proactive AI voice guidance.
+
+Access to all interactive exercises (Unscramble, Fill-in-the-blanks).
+
+Progress tracking dashboard.
+
+Tier 3: TalkFlow Premium / "Talk with Dave" Hybrid ($49 - $99 / month)
+
+Everything in Pro.
+
+Advanced AI Speech Recognition for pronunciation feedback.
+
+Human-in-the-loop: 1x 30-minute live session per month with a real tutor (Dave or contracted teachers) to practice what the AI taught them. This leverages your existing "Talk with Dave" business as a premium upsell.
+
+5. Technical Stack Requirements
+
+Frontend: React.js / Next.js, Tailwind CSS for responsive mobile-first design.
+
+Voice Integration: Web Speech API (Free MVP) moving to OpenAI TTS or ElevenLabs for premium, ultra-realistic voices.
+
+Backend/Database: Firebase or Supabase for user authentication, saving progress, and storing lesson states.
+
+Payments: Stripe Subscriptions.
+
+Content Generation: Connecting the existing Planwise ESL AI generation engine via API to populate the student app.
+
+6. Phase 1 Milestones (MVP)
+
+Month 1: Develop Homepage, Auth, and Stripe integration.
+
+Month 2: Build the Student Lesson Canvas (incorporating the UI prototype).
+
+Month 3: Integrate Web Speech API for AI voice and build the Placement Test.
+
+Month 4: Beta testing with 50 existing "Talk with Dave" students.
