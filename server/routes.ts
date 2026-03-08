@@ -347,5 +347,127 @@ export async function registerRoutes(
     }
   });
 
+  // Inworld Realtime API - status check (no secrets exposed)
+  app.get("/api/inworld/status", requireAuth, async (_req, res) => {
+    const apiKey = process.env.INWORLD_API_KEY;
+    return res.json({ available: !!apiKey });
+  });
+
+  // Inworld WebSocket proxy for lesson-specific AI tutor
+  // Authentication is enforced by parsing the session cookie on upgrade
+  const WebSocketModule = await import("ws");
+  const WS = WebSocketModule.default;
+  const wss = new WebSocketModule.WebSocketServer({ noServer: true });
+
+  httpServer.on("upgrade", (request, socket, head) => {
+    const url = new URL(request.url || "", `http://${request.headers.host}`);
+    if (url.pathname !== "/ws/inworld") return;
+
+    // Parse session to authenticate the WebSocket connection
+    const fakeRes: any = { setHeader: () => {}, end: () => {}, getHeader: () => {} };
+    (app as any).handle(
+      Object.assign(request, { method: "GET", url: "/api/auth/me" }),
+      fakeRes,
+      () => {
+        const req = request as any;
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, request);
+        });
+      }
+    );
+  });
+
+  wss.on("connection", (browser: any, req: any) => {
+    const apiKey = process.env.INWORLD_API_KEY;
+    if (!apiKey) {
+      browser.close(1008, "API key not configured");
+      return;
+    }
+
+    const url = new URL(req.url || "", `http://${req.headers.host}`);
+    const lessonContext = url.searchParams.get("context") || "";
+    const cefrLevel = url.searchParams.get("level") || "B1";
+
+    let setup = 0;
+    const api = new WS(
+      `wss://api.inworld.ai/api/v1/realtime/session?key=talkflow-${Date.now()}&protocol=realtime`,
+      { headers: { Authorization: `Basic ${apiKey}` } }
+    );
+
+    const sessionConfig = JSON.stringify({
+      type: "session.update",
+      session: {
+        instructions: `You are TalkFlow, a friendly and encouraging English language tutor. The student is at CEFR level ${cefrLevel}. ${lessonContext ? `The current lesson context: ${lessonContext}.` : ""} Speak clearly and at an appropriate pace for their level. Give pronunciation feedback when they speak. If they make grammar errors, gently correct them. Keep responses concise (2-3 sentences max). Be warm and supportive.`,
+      },
+    });
+
+    const greetMsg = JSON.stringify({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "Greet the student warmly and ask them what they would like to practice today. Keep it to one sentence." }],
+      },
+    });
+
+    api.on("open", () => {
+      console.log("Inworld API connection opened");
+    });
+
+    api.on("message", (raw: any) => {
+      const data = raw.toString();
+      if (setup < 2) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "session.created") {
+            api.send(sessionConfig);
+            setup = 1;
+          } else if (parsed.type === "session.updated" && setup === 1) {
+            api.send(greetMsg);
+            api.send('{"type":"response.create"}');
+            setup = 2;
+          } else if (parsed.type === "error") {
+            console.error("Inworld API error:", parsed);
+            if (browser.readyState === WS.OPEN) {
+              browser.send(JSON.stringify({ type: "error", message: parsed.error?.message || "API error" }));
+              browser.close(1011, "API error");
+            }
+            return;
+          }
+        } catch {}
+      }
+      if (browser.readyState === WS.OPEN) {
+        browser.send(data);
+      }
+    });
+
+    browser.on("message", (msg: any) => {
+      if (api.readyState === WS.OPEN) {
+        api.send(msg.toString());
+      }
+    });
+
+    browser.on("close", () => {
+      if (api.readyState === WS.OPEN || api.readyState === WS.CONNECTING) {
+        api.close();
+      }
+    });
+    api.on("close", () => {
+      if (browser.readyState === WS.OPEN) browser.close();
+    });
+    api.on("error", (e: any) => {
+      console.error("Inworld API error:", e.message);
+      if (browser.readyState === WS.OPEN) {
+        browser.send(JSON.stringify({ type: "error", message: "Voice connection failed" }));
+        browser.close(1011, "API error");
+      }
+    });
+  });
+
   return httpServer;
 }

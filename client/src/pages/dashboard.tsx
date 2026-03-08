@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { useEffect, useMemo } from "react";
+import { Link, useLocation, Redirect } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Brain, Flame, ArrowRight, BookOpen, Star, Trophy, Clock, Target, CalendarDays, LogOut } from "lucide-react";
+import { Brain, Flame, ArrowRight, BookOpen, Star, Trophy, Clock, Target, CalendarDays, LogOut, Phone } from "lucide-react";
 
 const CEFR_PROGRESS: Record<string, number> = {
   A1: 10, A2: 25, B1: 45, B2: 65, C1: 85, C2: 100,
@@ -63,8 +63,7 @@ export default function Dashboard() {
   }
 
   if (!isAuthenticated) {
-    setLocation("/auth");
-    return null;
+    return <Redirect to="/auth" />;
   }
 
   const completedLessonIds = new Set(progress.filter((p: any) => p.status === "completed").map((p: any) => p.lessonId));
@@ -234,6 +233,32 @@ export default function Dashboard() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Talk to AI Section */}
+        <div>
+          <h3 className="text-2xl font-bold mb-6">Practice Speaking</h3>
+          <Link href="/talk">
+            <Card className="group cursor-pointer border-none shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-md transition-all relative overflow-hidden" data-testid="card-talk-ai">
+              <div className="absolute right-0 top-0 opacity-10 scale-150 transform translate-x-1/4 -translate-y-1/4">
+                <Phone className="w-48 h-48" />
+              </div>
+              <CardContent className="p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Phone className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xl font-bold">Talk with TalkFlow AI</h4>
+                    <p className="text-white/80 text-sm">Real-time speech-to-speech conversation practice powered by Inworld AI</p>
+                  </div>
+                </div>
+                <Button size="lg" className="bg-white text-indigo-600 hover:bg-white/90 rounded-full w-full sm:w-auto shadow-sm font-bold">
+                  Start Talking <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {reviewCount > 0 && (

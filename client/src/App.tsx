@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import Dashboard from "@/pages/dashboard";
 import Lesson from "@/pages/lesson";
 import Auth from "@/pages/auth";
+import Talk from "@/pages/talk";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/lesson/:id" component={Lesson} />
+      <Route path="/talk" component={Talk} />
       <Route component={NotFound} />
     </Switch>
   );

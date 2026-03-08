@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, Volume2, Mic, CheckCircle2, ArrowRight, Lightbulb, GripVertical } from "lucide-react";
+import { X, Volume2, Mic, CheckCircle2, ArrowRight, Lightbulb, GripVertical, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { VoiceAgent } from "@/components/voice-agent";
 
 export default function Lesson() {
   const params = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function Lesson() {
   const [unscrambleOrder, setUnscrambleOrder] = useState<string[]>([]);
   const [availableWords, setAvailableWords] = useState<string[]>([]);
   const [lessonComplete, setLessonComplete] = useState(false);
+  const [showVoiceChat, setShowVoiceChat] = useState(false);
 
   const { data: lesson, isLoading } = useQuery<any>({
     queryKey: ["/api/lessons", lessonId.toString()],
@@ -400,6 +402,25 @@ export default function Lesson() {
           )}
         </div>
       </main>
+
+      {/* Floating Voice Chat Button */}
+      <button
+        data-testid="button-open-voice"
+        onClick={() => setShowVoiceChat(!showVoiceChat)}
+        className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-primary text-white shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-105 transition-transform z-30"
+      >
+        <Phone className="w-6 h-6" />
+      </button>
+
+      {/* Voice Chat Panel */}
+      {showVoiceChat && (
+        <div className="fixed bottom-40 right-6 w-80 sm:w-96 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <VoiceAgent
+            context={lesson?.title ? `Teaching lesson: ${lesson.title}. ${lesson.description}` : undefined}
+            cefrLevel={user?.cefrLevel || "B1"}
+          />
+        </div>
+      )}
 
       <footer className="fixed bottom-0 w-full bg-white border-t p-4 z-20">
         <div className="container mx-auto max-w-3xl flex justify-between items-center">
